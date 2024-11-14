@@ -40,7 +40,7 @@ try:
         xRan = (min(square.left, xRan[0]), max(square.left, xRan[1]))
         yRan = (min(square.top, yRan[0]), max(square.top, yRan[1]))
         squares.add((square.left, square.top))
-        # visualize.paste(Image.new('RGB', (5,5), "#FF0000"), (square.left, square.top))
+    #     visualize.paste(Image.new('RGB', (5,5), "#FF0000"), (square.left, square.top))
     # visualize.show()
     # pag.sleep(240)
 
@@ -113,7 +113,6 @@ try:
         goldenGrid[pos] = 1
 except (ps.ImageNotFoundException, IndexError) as exc:
     pag.keyUp('ctrl')
-    print('lower it')
     # s.show()
     pass
 # s.show()
@@ -136,9 +135,9 @@ while not all(goldenGrid[grid != -1]):
             pass
 
     # Calculate the best move to do
-    # bestMove = [nonGoldenCovered, gemPos, swapToPos, weight]
+    # bestMove = [nonGoldenCovered, gem_pos, swap_to_pos, weight]
 
-    # Create the weighted weightMap for the grid as well
+    # Create the weighted weight_map for the grid as well
     weightMap = create_weight_map(goldenGrid)
     bestMove = [-1, (-1, -1), (-1, -1), -1]
     for pos, gem in np.ndenumerate(grid):
@@ -167,12 +166,12 @@ while not all(goldenGrid[grid != -1]):
         try:
             pag.locateOnScreen(select, region=clickable, confidence=0.8, grayscale=False)
         except pag.ImageNotFoundException:
-            pag.sleep(0.5)
+            pass
         else:
             break
     pag.click(clickable[0] + 25, clickable[1] + 25)
-    # Get current goldenGrid by holding ctrl and searching for goldenGrid tiles
-    # The only time this should error is if you make a swap that removes all goldenGrid tiles
+    # Get current golden_grid by holding ctrl and searching for golden_grid tiles
+    # The only time this should error is if you make a swap that removes all golden_grid tiles
     goldenGrid = np.zeros((m, n))
     for pos, gem in np.ndenumerate(grid):
         if gem == -1:
