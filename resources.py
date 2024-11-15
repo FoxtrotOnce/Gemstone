@@ -1,6 +1,11 @@
 from PIL import Image
+import pyautogui as pag
+import pyscreeze as pyscr
 import collections
 import numpy as np
+
+
+goldSquare = Image.open('Gold Tile.png').resize((47, 47))
 
 
 class Gem:
@@ -17,44 +22,70 @@ class Gem:
         self.creates_gold = creates_gold
 
 
+def recognize_golden(golden_grid, bounding_box):
+    """
+    Modifies golden_grid to match the new grid.
+    """
+    pag.moveTo(20, 50)
+    pag.keyDown('ctrl')
+    pag.sleep(0.5)
+    s = pag.screenshot(region=bounding_box).convert('RGBA')
+    try:
+        for box in pyscr.locateAll(goldSquare, s, confidence=0.8):
+            # s.alpha_composite(Image.alpha_composite(goldSquare.convert('RGBA'), Image.new('RGBA', (47,47), '#0000FF40')), (box.left, box.top))
+            pos = (round((box.top - 3) / 50), round((box.left - 3) / 50))
+            golden_grid[pos] = 1
+    except (pyscr.ImageNotFoundException, IndexError) as exc:
+        pag.keyUp('ctrl')
+        # s.show()
+        pass
+    # s.show()
+    pag.keyUp('ctrl')
+
+
 def create_weight_map(golden_grid):
-    # Create the weighted weight_map for the grid as well
+    """
+    Creates a weighted map based on golden_grid, using sword weighing.
+    Sword weighing is equivalent to abs(y1-y2)+abs(x1-x2), except it uses abs(x1-x2) if y1 < y2.
+    Thus, the weight is a diamond, but extending downwards, forming a sword shape.
+    1 2 3 4 3 2 1
+    2 3 4 5 4 3 2
+    3 4 5 5 5 4 3
+    3 4 5 5 5 4 3
+    3 4 5 5 5 4 3...
+    """
 
     # weight_map = np.indices((m, n))[0]
     m, n = golden_grid.shape
-    weight_map = np.zeros((m, n))
-    # Create a sword-like weight around every non-golden tile:
+    weight_map = np.zeros((m, n), dtype=int)
+    # Calculate the weight for every tile using a "sword" distance from each non-golden tile (shown below)
     # 0 0 1 0 0
     # 0 1 2 1 0
     # 1 2 3 2 1
     # 1 2 2 2 1
     # 1 2 2 2 1...
-    for pos in np.argwhere(golden_grid == 0):
-        # Generate the tip and blade of the sword
-        # Formatted as (weight, y, x)
-        sword = [(3, 0, 0), (2, -1, 0), (1, -2, 0), (1, -1, -1), (1, -1, 1)]
-        for y in range(m - pos[0]):
-            sword.extend([(1, y, -2), (2, y, -1), (2, y, 0), (2, y, 1), (1, y, 2)])
-
-        for weight, y, x in sword:
-            newPos = (pos[0] + y, pos[1] + x)
-            if 0 <= newPos[0] < m and 0 <= newPos[1] < n:
-                weight_map[newPos] = max(weight_map[newPos], weight)
+    non_golden_tiles = np.argwhere(golden_grid == 0)
+    for pos in np.ndindex(m, n):
+        max_weight = 0
+        for ngPos in non_golden_tiles:
+            if pos[0] < ngPos[0]:
+                weight = (ngPos[0] - pos[0]) + abs(ngPos[1] - pos[1])
+            else:
+                weight = abs(ngPos[1] - pos[1])
+            max_weight = max(max_weight, 22 - weight)
+        weight_map[pos] = max_weight
 
     return weight_map
 
 
 def calculate_golden(grid, golden_grid, weight_map, gem_pos, swap_to_pos):
-    '''
+    """
     Takes the grid and golden_grid, then calculates what will happen if gem_pos and swap_to_pos are swapped.
     Gold is the amount of golden tiles created (at minimum) by the move
-    Weight is the move's weight based on a number of calculations, listed below:
-
-    - How low the move is as to displace more gems.
-    - How close matches are to non-golden spaces
+    Weight is the move's weight based on the weight_map, and the value of the gems it swaps.
 
     :return: gold: int, weight: int
-    '''
+    """
     grid, golden_grid = np.array(grid), np.array(golden_grid)
     m, n = grid.shape
     gold = 0
@@ -82,15 +113,19 @@ def calculate_golden(grid, golden_grid, weight_map, gem_pos, swap_to_pos):
             # print(grid)
             if golden_grid[pos] == 0:
                 gold += 1
+                # Make sure gold is weighed over everything besides special gems
+                weight += 25
                 golden_grid[pos] = 1
-            weight += weight_map[pos]
+            weight = max(weight, weight_map[pos])
             if gems[grid[pos]].is_special:
-                weight += 1000
+                # Weight special gems 10x as heavy as matching gold tiles
+                weight += 250
             # Shift down all elements above the match positions
             grid[pos] = 0
             while 0 <= pos[0] - 1 < m and grid[pos[0] - 1, pos[1]] > 0:
                 grid[pos] = grid[pos[0] - 1, pos[1]]
                 grid[pos[0] - 1, pos[1]] = 0
+                pos = (pos[0] - 1, pos[1])
     if not swappedOnce:
         return -1, -1
     return gold, weight
